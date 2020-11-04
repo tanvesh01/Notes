@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import { AllBooks, ADD_MESSAGE, AllMessages } from "./Queries";
 // import Aes from "crypto-js/aes";
@@ -20,6 +20,7 @@ const String_to_Uint8Array = (string) => {
 const List = (props) => {
     // const
     // const { loading, error, data } = useQuery(AllBooks);
+    const [input, setInput] = useState("");
     const { loading, error, data } = useQuery(AllMessages);
     const [addMessage, { dataM }] = useMutation(ADD_MESSAGE);
     // const ar = data && data.books ? data.books : [];
@@ -28,7 +29,7 @@ const List = (props) => {
         // Select a backend automatically
         let sodium = await SodiumPlus.auto();
         let key1 = await sodium.crypto_secretbox_keygen();
-        console.log(key1);
+        // console.log(key1);
         // let nonce = await sodium.randombytes_buf(24);
         // const keyBuffer = key.getBuffer();
         let message = "Whatsup boiz?";
@@ -72,6 +73,49 @@ const List = (props) => {
     // console.log(decrypted);
     // const plaintext = decrypted.toString(enc);
     // console.log(plaintext);
+    const onInput = (e) => {
+        setInput(e.target.value);
+    };
+    const submitNote = async () => {
+        const sodium = await SodiumPlus.auto();
+        const key = await sodium.crypto_secretbox_keygen();
+        const nonce = await sodium.randombytes_buf(24);
+        const message = input;
+        let ciphertext = await sodium.crypto_secretbox(message, nonce, key);
+        addMessage({
+            variables: {
+                note: Uint8Array_to_String(ciphertext),
+            },
+        });
+        // console.log(window.localStorage.getItem("data"));
+        if (window.localStorage.getItem("data") == null) {
+            const salt = [
+                { key: Uint8Array_to_String(key.getBuffer()), nonce: Uint8Array_to_String(nonce) },
+            ];
+            window.localStorage.setItem("data", JSON.stringify(salt));
+        } else {
+            const retrievedSalt = JSON.parse(window.localStorage.getItem("data"));
+            retrievedSalt.push({
+                key: Uint8Array_to_String(key.getBuffer()),
+                nonce: Uint8Array_to_String(nonce),
+            });
+            window.localStorage.setItem("data", JSON.stringify(retrievedSalt));
+        }
+    };
+
+    const selectNote = async (id) => {
+        const sodium = await SodiumPlus.auto();
+        const note = data.messages[id].note;
+        const dataLocal = JSON.parse(window.localStorage.getItem("data"));
+        const key = new CryptographyKey(Buffer(String_to_Uint8Array(dataLocal[id].key)));
+        console.log(key);
+        let decrypted = await sodium.crypto_secretbox_open(
+            String_to_Uint8Array(note),
+            String_to_Uint8Array(dataLocal[id].nonce),
+            key
+        );
+        console.log(decrypted.toString("utf-8"));
+    };
     console.log(data);
     return (
         <div>
@@ -79,6 +123,17 @@ const List = (props) => {
                 <li>
                     <h5 onClick={() => encrypt()}>Tanvesh!</h5>
                 </li>
+                <div>
+                    <input
+                        type="text"
+                        placeholder="Note.."
+                        value={input}
+                        onChange={(e) => onInput(e)}
+                    />
+                    {/* <button onClick={() => submitNote()}> Submit </button> */}
+                </div>
+                <button onClick={() => selectNote(0)}> one </button>
+                <button onClick={() => selectNote(1)}> two </button>
                 {/* {ar.map((e) => {
                     return (
                         <li onClick={() => props.handle(e.id)} key={e.id}>
